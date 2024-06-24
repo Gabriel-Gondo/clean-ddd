@@ -1,10 +1,10 @@
 import { AggregateRoot } from "@/core/entities/aggregate-root";
+import { Slug } from "./value-objects/slug";
 import { UniqueEntityID } from "@/core/entities/unique-entity-id";
 import { Optional } from "@/core/types/optional";
 import dayjs from "dayjs";
-import { Slug } from "./value-objects/slug";
-import { QuestionAttachment } from "./question-attachment";
 import { QuestionAttachmentList } from "./question-attachment-list";
+import { QuestionBestAnswerChosenEvent } from "@/domain/forum/enterprise/events/question-best-answer-chosen-event";
 
 export interface QuestionProps {
   authorId: UniqueEntityID;
@@ -12,8 +12,8 @@ export interface QuestionProps {
   title: string;
   content: string;
   slug: Slug;
-  createdAt: Date;
   attachments: QuestionAttachmentList;
+  createdAt: Date;
   updatedAt?: Date;
 }
 
@@ -38,12 +38,12 @@ export class Question extends AggregateRoot<QuestionProps> {
     return this.props.slug;
   }
 
-  get createdAt() {
-    return this.props.createdAt;
-  }
-
   get attachments() {
     return this.props.attachments;
+  }
+
+  get createdAt() {
+    return this.props.createdAt;
   }
 
   get updatedAt() {
@@ -51,7 +51,7 @@ export class Question extends AggregateRoot<QuestionProps> {
   }
 
   get isNew(): boolean {
-    return dayjs().diff(this.props.createdAt, "days") <= 3;
+    return dayjs().diff(this.createdAt, "days") <= 3;
   }
 
   get excerpt() {
@@ -65,6 +65,7 @@ export class Question extends AggregateRoot<QuestionProps> {
   set title(title: string) {
     this.props.title = title;
     this.props.slug = Slug.createFromText(title);
+
     this.touch();
   }
 
@@ -79,7 +80,21 @@ export class Question extends AggregateRoot<QuestionProps> {
   }
 
   set bestAnswerId(bestAnswerId: UniqueEntityID | undefined) {
+    if (bestAnswerId === undefined) {
+      return;
+    }
+
+    if (
+      this.props.bestAnswerId === undefined ||
+      !bestAnswerId.equals(this.props.bestAnswerId)
+    ) {
+      this.addDomainEvent(
+        new QuestionBestAnswerChosenEvent(this, bestAnswerId)
+      );
+    }
+
     this.props.bestAnswerId = bestAnswerId;
+
     this.touch();
   }
 
